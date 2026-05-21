@@ -1,43 +1,38 @@
-let gCount = 0; // track g presses
-let scrollVelocity = 50; // base scroll amount
-let scrollTimer = null;
+let prefix = "";
+let gCount = 0;
+let inVisualMode = false;
+let visualStart = null;
 
-// Helper: smooth scroll with acceleration
+let scrollVelocity = 50;
+
+// Smooth scroll helper
 function smoothScroll(dx, dy) {
-  let totalSteps = 10;
+  const steps = 10;
   let step = 0;
-
-  if (scrollTimer) clearInterval(scrollTimer);
-
-  scrollTimer = setInterval(() => {
+  let interval = setInterval(() => {
     step++;
     window.scrollBy({
-      left: dx * (step / totalSteps),
-      top: dy * (step / totalSteps),
+      left: dx * (step / steps),
+      top: dy * (step / steps),
       behavior: "auto",
     });
-
-    if (step >= totalSteps) clearInterval(scrollTimer);
-  }, 15); // ~60fps
+    if (step >= steps) clearInterval(interval);
+  }, 15);
 }
 
-// Optional: tiny visual hint
-function showHint(x, y) {
-  const hint = document.createElement("div");
-  hint.style.position = "fixed";
-  hint.style.top = y + "px";
-  hint.style.left = x + "px";
-  hint.style.width = "10px";
-  hint.style.height = "10px";
-  hint.style.background = "red";
-  hint.style.borderRadius = "50%";
-  hint.style.zIndex = 9999;
-  document.body.appendChild(hint);
-  setTimeout(() => hint.remove(), 300);
+// Visual mode helper
+function startVisual() {
+  inVisualMode = true;
+  visualStart = window.scrollY;
+}
+
+function endVisual() {
+  inVisualMode = false;
+  visualStart = null;
 }
 
 document.addEventListener("keydown", (e) => {
-  // Ignore typing fields
+  // Ignore typing in fields
   if (
     ["INPUT", "TEXTAREA"].includes(document.activeElement.tagName) ||
     document.activeElement.isContentEditable
@@ -45,41 +40,71 @@ document.addEventListener("keydown", (e) => {
     return;
   }
 
+  const key = e.key;
+
+  // If numeric key, append to prefix
+  if (/\d/.test(key) && prefix.length < 5) {
+    prefix += key;
+    return;
+  }
+
+  const count = prefix ? parseInt(prefix) : 1;
+  prefix = ""; // reset prefix after command
+
   let dx = 0,
     dy = 0;
 
-  switch (e.key) {
+  switch (key) {
     case "h":
-      dx = -scrollVelocity;
+      dx = -scrollVelocity * count;
       break;
     case "l":
-      dx = scrollVelocity;
+      dx = scrollVelocity * count;
       break;
     case "j":
-      dy = scrollVelocity;
+      dy = scrollVelocity * count;
       break;
     case "k":
-      dy = -scrollVelocity;
+      dy = -scrollVelocity * count;
       break;
+
     case "g":
       gCount++;
       if (gCount === 2) {
-        window.scrollTo({ top: 0, behavior: "smooth" }); // double g = top
+        window.scrollTo({ top: 0, behavior: "smooth" });
         gCount = 0;
       }
-      setTimeout(() => (gCount = 0), 1000); // reset after 1s
+      setTimeout(() => (gCount = 0), 1000);
       break;
+
     case "G":
       window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
       break;
+
+    case "v":
+      if (!inVisualMode) startVisual();
+      else endVisual();
+      break;
+
     default:
       gCount = 0;
-      return; // exit for other keys
+      return;
   }
 
-  // If there is scroll, perform smooth scroll
   if (dx !== 0 || dy !== 0) {
     smoothScroll(dx, dy);
-    showHint(window.innerWidth / 2, window.innerHeight / 2); // optional: show center hint
+    if (inVisualMode) {
+      const highlightHeight = Math.abs(window.scrollY - visualStart);
+      const highlight = document.createElement("div");
+      highlight.style.position = "absolute";
+      highlight.style.top = Math.min(visualStart, window.scrollY) + "px";
+      highlight.style.left = "0";
+      highlight.style.width = "100%";
+      highlight.style.height = highlightHeight + "px";
+      highlight.style.background = "rgba(0, 128, 255, 0.2)";
+      highlight.style.zIndex = 9998;
+      document.body.appendChild(highlight);
+      setTimeout(() => highlight.remove(), 300);
+    }
   }
 });
